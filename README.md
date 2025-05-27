@@ -6,9 +6,9 @@ Chicken head demo using a 5DOF manipulator on CHAMP Quadruped Robot.
 
 1. Clone and install all dependencies:
 
-        sudo apt install -y python-rosdep
+        sudo apt install -y python3-rosdep
         cd <your_ws>/src
-        git clone https://github.com/jb-balaji/chicken_head
+        git clone https://github.com/jb-balaji/chicken_head -b jb/ros2_variant
         cd ..
         rosdep install --from-paths src --ignore-src -r -y
 

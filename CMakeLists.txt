@@ -8,13 +8,9 @@ find_package(champ_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2 REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-include_directories(
-  include
-  ${EIGEN_INCLUDE_DIRS}
-)
+include_directories(include ${EIGEN3_INCLUDE_DIRS})
 
 # Library
 add_library(chicken_head src/chicken_head.cpp)
@@ -24,6 +20,7 @@ ament_target_dependencies(chicken_head
   sensor_msgs
   geometry_msgs
   Eigen3
+  tf2
 )
 
 # Executable
@@ -34,6 +31,7 @@ ament_target_dependencies(chicken_head_node
   sensor_msgs
   geometry_msgs
   Eigen3
+  tf2
 )
 target_link_libraries(chicken_head_node chicken_head)
 
@@ -41,9 +39,7 @@ target_link_libraries(chicken_head_node chicken_head)
 install(TARGETS 
     chicken_head
     chicken_head_node
-    ARCHIVE DESTINATION lib/${PROJECT_NAME}
-    LIBRARY DESTINATION lib/${PROJECT_NAME}
-    RUNTIME DESTINATION lib/${PROJECT_NAME}
+    DESTINATION lib/${PROJECT_NAME}
 )
 
 # Install headers
@@ -51,4 +47,10 @@ install(DIRECTORY include/
   DESTINATION include/
 )
 
+install(
+  DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
+
 ament_package()
+

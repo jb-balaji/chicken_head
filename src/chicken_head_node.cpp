@@ -28,13 +28,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 int main(int argc, char** argv )
 {
-    rclcpp::init(argc, argv, "chicken_head_node");
+    rclcpp::init(argc, argv);
 
-    rclcpp::Node nh("");
-    rclcpp::Node nh_private("~");
-    
-    ChickenHead champ(nh, nh_private);
-    
-    ros::spin();
+    rclcpp::NodeOptions options;
+    auto chicken_head = std::make_shared<ChickenHead>(options);
+    rclcpp::spin(chicken_head);
+
+    rclcpp::shutdown();
     return 0;
 }

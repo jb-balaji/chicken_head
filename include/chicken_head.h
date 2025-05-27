@@ -27,19 +27,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CHICKEN_HEAD_H
 
 #include "rclcpp/rclcpp.hpp"
-#include "geometry_msgs/msg/quaternion.hpp"
-#include "geometry_msgs/msg/pose.hpp"
-#include "champ_msgs/msg/pose.hpp"
-#include "sensor_msgs/msg/joint_state.hpp"
+#include <geometry_msgs/msg/quaternion.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include <champ_msgs/msg/pose.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 #include <Eigen/Dense>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include <tf2/LinearMath/Transform.h>
+#include <vector>
+#include <string>
 
 class ChickenHead : public rclcpp::Node
 {
 public:
-    ChickenHead();  // Constructor
-
+    explicit ChickenHead(const rclcpp::NodeOptions &options);  // Constructor
+    
 private:
     using Vector3d = Eigen::Vector3d;
 
@@ -65,7 +67,7 @@ private:
     float l2_;
 
     // Helper methods
-    Vector3d rotate(const Vector3d pos, float alpha, float phi, float beta);
+    Vector3d rotate(const Vector3d &pos, const float alpha, const float phi, const float beta);
     void cmdPoseCallback_(const geometry_msgs::msg::Pose::SharedPtr msg);
     void controlLoop_();
 };

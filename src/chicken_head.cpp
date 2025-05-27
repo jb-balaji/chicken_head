@@ -23,23 +23,22 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <chicken_head.h>
+#include "chicken_head.h"
 
-ChickenHead::ChickenHead()
-    : Node("chicken_node"),
+ChickenHead::ChickenHead(const rclcpp::NodeOptions &options)
+    : rclcpp::Node("chicken_head_node",options),
       l1_(lower_to_upper_arm_[0]),
       l2_(upper_arm_to_wrist1_[0])
 {
-    this->declare_parameter("gait/nominal_height", 0.0);
-    this->get_parameter("gait/nominal_height", nominal_height_);
-
     joint_state_publisher_ = this->create_publisher<sensor_msgs::msg::JointState>("arm/joint_states", 100);
     cmd_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::Pose>(
         "body_pose", 1, std::bind(&ChickenHead::cmdPoseCallback_, this, std::placeholders::_1));
-  
 
-    loop_timer_ = this->create_wall_timer(std::chrono::milliseconds(5),
-                                         std::bind(&ChickenHead::controlLoop_, this));
+    this->declare_parameter<float>("gait/nominal_height", 0.0);
+    this->get_parameter("gait/nominal_height", nominal_height_);
+
+    loop_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(5), std::bind(&ChickenHead::controlLoop_, this));
 
     req_pose_.roll = 0.0;
     req_pose_.pitch = 0.0;
@@ -47,18 +46,20 @@ ChickenHead::ChickenHead()
     req_pose_.z = nominal_height_;
 }
 
-Eigen::Vector3d ChickenHead::rotate(const Eigen::Vector3d pos, const float alpha, const float phi, const float beta)
+
+Eigen::Vector3d ChickenHead::rotate(const Vector3d &pos, const float alpha, const float phi, const float beta)
 {
     Eigen::Matrix3d Rx, Ry, Rz;
-    Eigen::Vector3d xformed_pos;
+    Vector3d xformed_pos;
 
+    // Rotation matrices for each axis
     Rz << cos(beta), -sin(beta), 0, sin(beta), cos(beta), 0, 0, 0, 1;
     xformed_pos = (Rz * pos).eval();
 
     Ry << cos(phi), 0, sin(phi), 0, 1, 0, -sin(phi), 0, cos(phi);
     xformed_pos = (Ry * xformed_pos).eval();
 
-    Rx << 1, 0, 0, 0, cos(alpha), -sin(alpha), 0, sin(alpha),  cos(alpha);
+    Rx << 1, 0, 0, 0, cos(alpha), -sin(alpha), 0, sin(alpha), cos(alpha);
     xformed_pos = (Rx * xformed_pos).eval();
 
     return xformed_pos;
@@ -66,13 +67,16 @@ Eigen::Vector3d ChickenHead::rotate(const Eigen::Vector3d pos, const float alpha
 
 void ChickenHead::controlLoop_()
 {
-    Eigen::Vector3d target_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, 0);
+    // Rotate initial position based on the required pose (roll, pitch)
+    Vector3d target_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, 0);
     target_pos[2] += nominal_height_ - req_pose_.z;
-    target_pos -= base_to_lower_arm_;
+    target_pos -= base_to_lower_arm_;  // Adjust by the arm geometry
 
-    Eigen::Vector3d temp_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, -req_pose_.yaw);
-    temp_pos -= wrist1_to_wrist2_;
+    // Rotation based on yaw for wrist position
+    Vector3d temp_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, -req_pose_.yaw);
+    temp_pos -= wrist1_to_wrist2_;  // Adjust by wrist geometry
 
+    // Compute the joint positions for the robotic arm
     float base_joint = atan2(temp_pos[1], temp_pos[0]);
 
     float x = target_pos[0];
@@ -87,43 +91,50 @@ void ChickenHead::controlLoop_()
     float wrist1_joint = -beta - req_pose_.pitch;
     float wrist2_joint = -req_pose_.roll;
 
+    // Joint state message to publish
     std::vector<std::string> joint_names = {
         "base_joint", "lower_arm_joint", "upper_arm_joint", "wrist1_joint", "wrist2_joint"
     };
 
     sensor_msgs::msg::JointState joint_states;
-    joint_states.header.stamp = this->now();
-    //joint_states.name.resize(joint_names.size());
-    //joint_states.position.resize(joint_names.size());
+    joint_states.header.stamp = this->get_clock()->now();
     joint_states.name = joint_names;
-    joint_states.position ={ base_joint, lower_joint, upper_joint, wrist1_joint, wrist2_joint };
-    
-    for (size_t i = 0; i < joint_states.position.size(); ++i)
+    joint_states.position = { base_joint, lower_joint, upper_joint, wrist1_joint, wrist2_joint };
+
+    // Check for NaN values in the joint positions
+    for (const auto& pos : joint_states.position)
     {
-        if(std::isnan(joint_states.position[i]))
+        if(std::isnan(pos))
         {
-            return;
+            return;  // Avoid publishing NaN values
         }
     }
 
+    // Publish joint states
     joint_state_publisher_->publish(joint_states);
 }
 
 void ChickenHead::cmdPoseCallback_(const geometry_msgs::msg::Pose::SharedPtr msg)
-//void ChickenHead::cmdPoseCallback_(const std::SharedPtr<const geometry_msgs::msg::Pose> msg)
 {
+    // Extract the quaternion from the message
     tf2::Quaternion quat(
         msg->orientation.x,
         msg->orientation.y,
         msg->orientation.z,
         msg->orientation.w);
-    tf2::Matrix3x3 m(quat);
-    double roll, pitch, yaw;
-    m.getRPY(roll, pitch, yaw);
     
+    // Create a tf2::Matrix3x3 from the quaternion and extract RPY
+    tf2::Matrix3x3 m(quat);  // Convert quaternion to rotation matrix
+    double roll, pitch, yaw;
+    m.getRPY(roll, pitch, yaw);  // Extract RPY from the rotation matrix
+
+    // Now you can assign the angles to your request pose
     req_pose_.roll = roll;
     req_pose_.pitch = pitch;
     req_pose_.yaw = yaw;
 
-    req_pose_.z = msg->position.z +  nominal_height_;
+    // Update the requested z pose (height) based on the message
+    req_pose_.z = msg->position.z + nominal_height_;
 }
+
+

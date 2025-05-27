@@ -49,7 +49,8 @@ def generate_launch_description():
         Node(
             package='chicken_head',
             executable='chicken_head_node',
-            name='chicken_head'
+            name='chicken_head',
+            output='screen'
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(champ_teleop_launch),
@@ -58,3 +59,4 @@ def generate_launch_description():
             }.items()
         )
     ])
+
