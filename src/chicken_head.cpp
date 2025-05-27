@@ -25,21 +25,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <chicken_head.h>
 
-ChickenHead::ChickenHead(const ros::NodeHandle &node_handle,
-                         const ros::NodeHandle &private_node_handle):
-    nh_(node_handle),
-    pnh_(private_node_handle),
-    l1_(lower_to_upper_arm_[0]),
-    l2_(upper_arm_to_wrist1_[0])
+ChickenHead::ChickenHead()
+    : Node("chicken_node"),
+      l1_(lower_to_upper_arm_[0]),
+      l2_(upper_arm_to_wrist1_[0])
 {
-    joint_state_publisher_ = nh_.advertise<sensor_msgs::JointState>("arm/joint_states", 100);
-    cmd_pose_subscriber_ = nh_.subscribe("body_pose", 1, &ChickenHead::cmdPoseCallback_, this);
+    this->declare_parameter("gait/nominal_height", 0.0);
+    this->get_parameter("gait/nominal_height", nominal_height_);
 
-    nh_.getParam("gait/nominal_height", nominal_height_);
+    joint_state_publisher_ = this->create_publisher<sensor_msgs::msg::JointState>("arm/joint_states", 100);
+    cmd_pose_subscriber_ = this->create_subscription<geometry_msgs::msg::Pose>(
+        "body_pose", 1, std::bind(&ChickenHead::cmdPoseCallback_, this, std::placeholders::_1));
+  
 
-    loop_timer_ = pnh_.createTimer(ros::Duration(0.005),
-                                   &ChickenHead::controlLoop_,
-                                   this);
+    loop_timer_ = this->create_wall_timer(std::chrono::milliseconds(5),
+                                         std::bind(&ChickenHead::controlLoop_, this));
 
     req_pose_.roll = 0.0;
     req_pose_.pitch = 0.0;
@@ -47,12 +47,10 @@ ChickenHead::ChickenHead(const ros::NodeHandle &node_handle,
     req_pose_.z = nominal_height_;
 }
 
-Eigen::Vector3d ChickenHead::rotate(const Vector3d pos, const float alpha, const float phi, const float beta)
+Eigen::Vector3d ChickenHead::rotate(const Eigen::Vector3d pos, const float alpha, const float phi, const float beta)
 {
-    Eigen::Matrix3d Rx;
-    Eigen::Matrix3d Ry;
-    Eigen::Matrix3d Rz;
-    Vector3d xformed_pos;
+    Eigen::Matrix3d Rx, Ry, Rz;
+    Eigen::Vector3d xformed_pos;
 
     Rz << cos(beta), -sin(beta), 0, sin(beta), cos(beta), 0, 0, 0, 1;
     xformed_pos = (Rz * pos).eval();
@@ -66,13 +64,13 @@ Eigen::Vector3d ChickenHead::rotate(const Vector3d pos, const float alpha, const
     return xformed_pos;
 }
 
-void ChickenHead::controlLoop_(const ros::TimerEvent& event)
+void ChickenHead::controlLoop_()
 {
-    Vector3d target_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, 0);
+    Eigen::Vector3d target_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, 0);
     target_pos[2] += nominal_height_ - req_pose_.z;
     target_pos -= base_to_lower_arm_;
 
-    Vector3d temp_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, -req_pose_.yaw);
+    Eigen::Vector3d temp_pos = rotate(initial_pos_, -req_pose_.roll, -req_pose_.pitch, -req_pose_.yaw);
     temp_pos -= wrist1_to_wrist2_;
 
     float base_joint = atan2(temp_pos[1], temp_pos[0]);
@@ -89,44 +87,37 @@ void ChickenHead::controlLoop_(const ros::TimerEvent& event)
     float wrist1_joint = -beta - req_pose_.pitch;
     float wrist2_joint = -req_pose_.roll;
 
-    std::vector<std::string> joint_names;
-    joint_names.push_back("base_joint");
-    joint_names.push_back("lower_arm_joint");
-    joint_names.push_back("upper_arm_joint");
-    joint_names.push_back("wrist1_joint");
-    joint_names.push_back("wrist2_joint");
+    std::vector<std::string> joint_names = {
+        "base_joint", "lower_arm_joint", "upper_arm_joint", "wrist1_joint", "wrist2_joint"
+    };
 
-    sensor_msgs::JointState joint_states;
-    
-    joint_states.header.stamp = ros::Time::now();
-    joint_states.name.resize(joint_names.size());
-    joint_states.position.resize(joint_names.size());
+    sensor_msgs::msg::JointState joint_states;
+    joint_states.header.stamp = this->now();
+    //joint_states.name.resize(joint_names.size());
+    //joint_states.position.resize(joint_names.size());
     joint_states.name = joint_names;
-    joint_states.position[0]= base_joint;
-    joint_states.position[1]= lower_joint;
-    joint_states.position[2]= upper_joint;
-    joint_states.position[3]= wrist1_joint;
-    joint_states.position[4]= wrist2_joint;
-
-    for (size_t i = 0; i < joint_names.size(); ++i)
+    joint_states.position ={ base_joint, lower_joint, upper_joint, wrist1_joint, wrist2_joint };
+    
+    for (size_t i = 0; i < joint_states.position.size(); ++i)
     {
-        if(isnan(joint_states.position[i]))
+        if(std::isnan(joint_states.position[i]))
         {
             return;
         }
     }
 
-    joint_state_publisher_.publish(joint_states);
+    joint_state_publisher_->publish(joint_states);
 }
 
-void ChickenHead::cmdPoseCallback_(const geometry_msgs::Pose::ConstPtr& msg)
+void ChickenHead::cmdPoseCallback_(const geometry_msgs::msg::Pose::SharedPtr msg)
+//void ChickenHead::cmdPoseCallback_(const std::SharedPtr<const geometry_msgs::msg::Pose> msg)
 {
-    tf::Quaternion quat(
+    tf2::Quaternion quat(
         msg->orientation.x,
         msg->orientation.y,
         msg->orientation.z,
         msg->orientation.w);
-    tf::Matrix3x3 m(quat);
+    tf2::Matrix3x3 m(quat);
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
     
