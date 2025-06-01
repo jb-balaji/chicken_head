@@ -26,29 +26,37 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef CHICKEN_HEAD_H
 #define CHICKEN_HEAD_H
 
-#include "ros/ros.h"
-#include <geometry_msgs/Quaternion.h>
-#include <geometry_msgs/Pose.h>
-#include <champ_msgs/Pose.h>
-#include <sensor_msgs/JointState.h>
-#include "tf/transform_datatypes.h"
+#include "rclcpp/rclcpp.hpp"
+#include <geometry_msgs/msg/quaternion.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include <champ_msgs/msg/pose.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 #include <Eigen/Dense>
+#include <vector>
+#include <string>
 
-class ChickenHead
+class ChickenHead : public rclcpp::Node
 {
+public:
+    explicit ChickenHead(const rclcpp::NodeOptions &options);  // Constructor
+    
+private:
     using Vector3d = Eigen::Vector3d;
 
-    ros::NodeHandle nh_;
-    ros::NodeHandle pnh_;
+    // ROS interfaces
+    rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr cmd_pose_subscriber_;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_publisher_;
+    rclcpp::TimerBase::SharedPtr loop_timer_;
 
-    ros::Subscriber cmd_pose_subscriber_;
-    ros::Publisher joint_state_publisher_;
-
-    champ_msgs::Pose req_pose_;
-    ros::Timer loop_timer_;
-
+    // Parameters
     float nominal_height_;
 
+    // Internal state
+    champ_msgs::msg::Pose req_pose_;
+
+    // Geometry constants
     Vector3d initial_pos_ = Vector3d(0.391, 0.0, 0.165); 
     Vector3d base_to_lower_arm_ = Vector3d(0.070, 0.000, 0.100); 
     Vector3d lower_to_upper_arm_ = Vector3d(0.195, 0.000, 0.000); 
@@ -58,12 +66,11 @@ class ChickenHead
     float l1_;
     float l2_;
 
-    Vector3d rotate(const Vector3d, const float alpha, const float phi, const float beta);
-    void cmdPoseCallback_(const geometry_msgs::Pose::ConstPtr& msg);
-    void controlLoop_(const ros::TimerEvent& event);
-    public:
-        ChickenHead(const ros::NodeHandle &node_handle,
-                    const ros::NodeHandle &private_node_handle);
+    // Helper methods
+    Vector3d rotate(const Vector3d &pos, const float alpha, const float phi, const float beta);
+    void cmdPoseCallback_(const geometry_msgs::msg::Pose::SharedPtr msg);
+    void controlLoop_();
 };
 
-#endif
+#endif  // CHICKEN_HEAD_H
+

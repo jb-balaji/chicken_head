@@ -1,47 +1,56 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(chicken_head)
 
-find_package(catkin 
-  REQUIRED
-  COMPONENTS
-  roscpp
-  champ_msgs
-  sensor_msgs
-  geometry_msgs
-)
+# Find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(champ_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(Eigen3 REQUIRED)
 
-catkin_package(
-  LIBRARIES
-  INCLUDE_DIRS
-  CATKIN_DEPENDS
-  roscpp
-  champ_msgs
-  sensor_msgs
-  geometry_msgs
-  DEPENDS
-)
+include_directories(include ${EIGEN3_INCLUDE_DIRS})
 
-find_package(cmake_modules REQUIRED)
-find_package(Eigen REQUIRED)
-include_directories(${Eigen_INCLUDE_DIRS})
-
-include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
-  include_directories(${EIGEN_INCLUDE_DIRS})
-)
-
+# Library
 add_library(chicken_head src/chicken_head.cpp)
+ament_target_dependencies(chicken_head
+  rclcpp
+  champ_msgs
+  sensor_msgs
+  geometry_msgs
+  Eigen3
+  tf2
+)
 
+# Executable
 add_executable(chicken_head_node src/chicken_head_node.cpp)
-target_link_libraries(chicken_head_node chicken_head ${catkin_LIBRARIES})
-add_dependencies(chicken_head_node ${catkin_EXPORTED_TARGETS})
-add_dependencies(chicken_head ${catkin_EXPORTED_TARGETS})
+ament_target_dependencies(chicken_head_node
+  rclcpp
+  champ_msgs
+  sensor_msgs
+  geometry_msgs
+  Eigen3
+  tf2
+)
+target_link_libraries(chicken_head_node chicken_head)
 
+# Install targets
 install(TARGETS 
     chicken_head
     chicken_head_node
-    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    DESTINATION lib/${PROJECT_NAME}
 )
+
+# Install headers
+install(DIRECTORY include/
+  DESTINATION include/
+)
+
+install(
+  DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
+
+ament_package()
+
